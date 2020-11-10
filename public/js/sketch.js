@@ -1,7 +1,9 @@
 // written by Andrés Villa Torres + Florian Bruggisser + Luke Franzke
 // tracking IR Technology by Florian Bruggisser and Luke Franzke
 // Interaction Design Group ZHdK
-// updated 26 oct 2020 
+// updated 26 oct 2020
+
+// Updated by Tim Fuchs, 10 Nov 2020
 
 // references
 // reference https://github.com/bohnacker/p5js-screenPosition
@@ -15,12 +17,17 @@ let sky
 let theta = 0.001 
 let r = 400 
 let easycam 
-let pOI = [] 
-let pOI2 = []
+let projectPOI = []
+let projectPOI2 = []
+let cityPOI = [] 
+let cityPOI2 = []
 
 let socket = io() 
 
-let tPS, tPE // testPointStart , testPointEnd of Spike 
+// testPointStart , testPointEnd of Spike
+// Length of the spikes
+let tPS, tPE
+
 let canvas 
 let testTrackDevices = []
 let threeDviewFlag = true
@@ -33,6 +40,8 @@ let bckColor = [0,0,0]
 
 let zurich
 let cdmx
+
+// variables for positioning the map texture, make sure to use an equirectangular map image
 // apply rotations of the textured sphere for accurate UV projection of the earth map
 let rMX =  -90/* -90 */
 let rMY =  90/* 90 */
@@ -48,6 +57,10 @@ let pointsEarth = []
 let futureCitiesTable
 let futureCitiesData
 let cities
+
+let partnerProjectsTable
+let partnerProjectsData
+let projects
 
 /*  full screen */
 let elem = document.documentElement
@@ -137,13 +150,22 @@ function getRandomColor(){
 }
 
 
-
+//Function to load all your data (csv, etc) and assets (images, videos)
 function preload() {
-  	earthImg = loadImage('../imgs/earth_min_black.jpg') 
-	sky = loadImage('../imgs/sky.jpg') 
+
+//earth and universe texture
+	earthImg = loadImage('../imgs/equirectangular-projection.jpg') 
+	sky = loadImage('../imgs/space2.jpg') 
+//original textures	
+  	//earthImg = loadImage('../imgs/earth_min_black.jpg')
+	//sky = loadImage('../imgs/sky.jpg') 
+	
+	
 	earthMap = loadTable('assets/maps/earth.csv','','')
-	loadData('assets/data/future_cities.csv')
+	loadCityData('assets/data/future_cities.csv')
 	// futureCitiesTable = loadTable('assets/data/future_cities.csv','','')
+
+	loadProjectData('assets/data/featured_projects.csv')
 
 	socket.on('connected',function(data){
 		// console.log('new client connected id:' + data.id) 
@@ -184,6 +206,38 @@ function setup() {
 	// CREATING A RANDOM ARRAY OF POINTS AROUND THE GLOBE
 	//  replace with csv real points or Points of Interest
 
+	projects = partnerProjectsData.getColumn(0)
+	let pp_name = partnerProjectsData.getColumn(1)
+	let pp_country = partnerProjectsData.getColumn(2)
+	let pp_lat = partnerProjectsData.getColumn(3)
+	let pp_lon = partnerProjectsData.getColumn(4)
+	let pp_link = partnerProjectsData.getColumn(5)
+
+	console.log(projects.length + " total rows in featured projects table")
+	// for(let i = 0 ; i < cities.length; i ++ ){
+	// 	if(i>0){
+	// 		// console.log(cities[i] , curr_lat[i], curr_lon[i])
+	// 	}
+	// }
+	for(let i = 0 ; i <projects.length; i++){
+		// geo coordinates
+		// replace the random locations with the projects 
+		if(i>0){
+		let lat = radians(pp_lat[i]) 
+		let lon = radians(pp_lon[i]) 
+		console.log(i , projects[i], lat , lon )
+		// cartesian coordinates
+		let x = r * Math.cos(lat) * Math.cos(lon)
+		let y = r * Math.cos(lat) * Math.sin(lon)
+		let z = r * Math.sin(lat)
+		projectPOI.push(createVector(x,y,z))
+		let x2 = (r+25) * Math.cos(lat) * Math.cos(lon)
+		let y2 = (r+25) * Math.cos(lat) * Math.sin(lon)
+		let z2 = (r+25) * Math.sin(lat)
+		// 25 is the distance or length of the spikes
+		projectPOI2.push(createVector(x2,y2,z2))
+		}
+	}
 	cities = futureCitiesData.getColumn(0)
 	let futCities = futureCitiesData.getColumn(2)
 	let curr_lat = futureCitiesData.getColumn(27)
@@ -191,7 +245,7 @@ function setup() {
 	let fut_lat = futureCitiesData.getColumn(29)
 	let fut_lon = futureCitiesData.getColumn(30)
 
-	console.log(cities.length + " total rows in table")
+	console.log(cities.length + " total rows in future cities table")
 	// for(let i = 0 ; i < cities.length; i ++ ){
 	// 	if(i>0){
 	// 		// console.log(cities[i] , curr_lat[i], curr_lon[i])
@@ -203,17 +257,17 @@ function setup() {
 		if(i>0){
 		let lat = radians(curr_lat[i]) 
 		let lon = radians(curr_lon[i]) 
-		// console.log(i , cities[i], lat , lon )
+		//console.log(i , cities[i], lat , lon )
 		// cartesian coordinates
 		let x = r * Math.cos(lat) * Math.cos(lon)
 		let y = r * Math.cos(lat) * Math.sin(lon)
 		let z = r * Math.sin(lat)
-		pOI.push(createVector(x,y,z)) 
+		cityPOI.push(createVector(x,y,z))
 		let x2 = (r+25) * Math.cos(lat) * Math.cos(lon)
 		let y2 = (r+25) * Math.cos(lat) * Math.sin(lon)
 		let z2 = (r+25) * Math.sin(lat)
 		// 25 is the distance or length of the spikes
-		pOI2.push(createVector(x2,y2,z2))
+		cityPOI2.push(createVector(x2,y2,z2))
 		}
 	}
 	tPS = createVector()
@@ -268,7 +322,9 @@ function draw() {
 	let user = createVector(mouseX,mouseY)
 	show3D()
 	show2d() 
-	showPointsOfInterest(cities.length-2)
+	showCities(cities.length-2)
+	showPointsOfInterest(projects.length-2)
+
 	showFlatMap(pointsEarth, color(0,255,0))
 	showVectorMap(pointsEarth,screenPointsEarth,color(255,255,255))
 	easycam.setCenter([0,0,0],0.0)
@@ -278,11 +334,19 @@ function draw() {
 function showFlatPointsOfInterest(){
  		for(let i = 0; i <cities.length; i++){
 			let lR = 400 
-			let lLat = asin(pOI[i].z/lR) 
-			let lLong = atan2(pOI[i].y, -pOI[i].x ) 
+			let lLat = asin(cityPOI[i].z/lR) 
+			let lLong = atan2(cityPOI[i].y, -cityPOI[i].x ) 
 			lLat = lLat *  90/PI * 10 // scaling
 			lLong = lLong * 180/PI * 10 // scaling 
 			drawLine(lLong, lLat, 0, lLong, lLat, 50 ,0,255,0) 
+		}
+		for(let i = 0; i <projects.length; i++){
+			let lR = 400 
+			let lLat = asin(projectPOI[i].z/lR) 
+			let lLong = atan2(projectPOI[i].y, -projectPOI[i].x ) 
+			lLat = lLat *  90/PI * 10 // scaling
+			lLong = lLong * 180/PI * 10 // scaling 
+			drawLine(lLong, lLat, 0, lLong, lLat, 50 ,255,0,0) 
 		}
 }
 
@@ -309,9 +373,9 @@ function show3D(){
 	  	pop()
 		noLights() 
 	 	ambientLight(255, 255, 255) 
-	  	// texture(sky) 
+		texture(sky) 
 	  	noStroke() 
-	  	fill(30,30,30)
+	  	//fill(30,30,30)
 		sphere(r*5,6,6);
 
 
@@ -319,7 +383,7 @@ function show3D(){
 		for(let i = 0; i <400; i++){
 
 			// rename to : pOIx, pOIy, pOIz
-			// drawLine(-pOI[i].x,pOI[i].y,pOI[i].z,-pOI2[i].x,pOI2[i].y,pOI2[i].z,0,0,255) 
+			// drawLine(-pOI[i].x,pOI[i].y,pOI[i].z,-pOI2[i].x,pOI2[i].y,pOI2[i].z,0,0,255) renamed pOI to cityPOI
 		}
 		drawLine(-tPS.x,tPS.y,tPS.z,-tPE.x,tPE.y,tPE.z,0,255,0)
 
@@ -554,14 +618,18 @@ function fastDist(  ax, ay,  az, bx, by, bz )
   return fdist
 }
 // rename this function - show Points Of Interest
-function showPointsOfInterest(amount){
+function showCities(amount){
 	if(pOIFlag){
-		let testPoints = []
-		// the screenPoisition() function projects coordinates from 3D space into the 2D projections of the Screen
+		//let projectPoints = []
+		let cityPoints = []
+		// the screenPosition() function projects coordinates from 3D space into the 2D projections of the Screen
 		let tZurich = screenPosition(-zurich.x,zurich.y,zurich.z)
 		let tCDMX = screenPosition(-cdmx.x,cdmx.y,cdmx.z)
+		//for(let i = 0 ; i <amount; i++){
+		//	projectPoints[i] = screenPosition(-projectPOI[i].x, projectPOI[i].y, projectPOI[i].z)
+		//}
 		for(let i = 0 ; i <amount; i++){
-			testPoints[i] = screenPosition(-pOI[i].x, pOI[i].y, pOI[i].z)
+			cityPoints[i] = screenPosition(-cityPOI[i].x, cityPOI[i].y, cityPOI[i].z)
 		}
 		let user = createVector(mouseX - windowWidth/2,mouseY - windowHeight/2)
 		// in case the touch display or device is available use the touchX instead
@@ -570,22 +638,41 @@ function showPointsOfInterest(amount){
 		}
 		// similar to pushMatrix()
 		easycam.beginHUD()
+
+			//for(let i = 0; i < amount;i++){
+			//	if(user.dist(projectPoints[i])<10){
+			//		fill(255,0,255)
+			//		noStroke()
+			//		circle(projectPoints[i].x + windowWidth/2, projectPoints[i].y + windowHeight/2, 15)
+			//		let lat = Math.asin(projectPOI[i].z / r )
+			//		let lon = Math.atan2(projectPOI[i].y, projectPOI[i].x)
+			//		lat = lat * 180 / Math.PI
+			//		lon = lon * 180 / Math.PI
+			//		textSize(12)
+			//		let latLon = 'lat : ' + lat.toFixed(3) + ' , lon : '+ lon.toFixed(3);
+			//		text( projects[i+1]  + " , " + latLon ,projectPoints[i].x + windowWidth/2 + 10, projectPoints[i].y + windowHeight/2 + 5 )
+			//	}else{
+			//		fill(255,100,255)
+			//		noStroke()
+			//		circle(projectPoints[i].x + windowWidth/2, projectPoints[i].y + windowHeight/2, 2)
+			//	}
+			//}
 			for(let i = 0; i < amount;i++){
-				if(user.dist(testPoints[i])<10){
+				if(user.dist(cityPoints[i])<10){
 					fill(255,180,255)
 					noStroke()
-					circle(testPoints[i].x + windowWidth/2, testPoints[i].y + windowHeight/2, 15)
-					let lat = Math.asin(pOI[i].z / r )
-					let lon = Math.atan2(pOI[i].y, pOI[i].x)
+					circle(cityPoints[i].x + windowWidth/2, cityPoints[i].y + windowHeight/2, 15)
+					let lat = Math.asin(cityPOI[i].z / r )
+					let lon = Math.atan2(cityPOI[i].y, cityPOI[i].x)
 					lat = lat * 180 / Math.PI
 					lon = lon * 180 / Math.PI
 					textSize(12)
 					let latLon = 'lat : ' + lat.toFixed(3) + ' , lon : '+ lon.toFixed(3);
-					text( cities[i+1]  + " , " + latLon ,testPoints[i].x + windowWidth/2 + 10, testPoints[i].y + windowHeight/2 + 5 )
+					text( cities[i+1]  + " , " + latLon ,cityPoints[i].x + windowWidth/2 + 10, cityPoints[i].y + windowHeight/2 + 5 )
 				}else{
 					fill(200,180,200)
 					noStroke()
-					circle(testPoints[i].x + windowWidth/2, testPoints[i].y + windowHeight/2, 2)
+					circle(cityPoints[i].x + windowWidth/2, cityPoints[i].y + windowHeight/2, 2)
 				}
 			}
 			fill(255,100,100)
@@ -607,10 +694,48 @@ function showPointsOfInterest(amount){
 			}
 			fill(100,100,255)
 			circle(tCDMX.x + windowWidth/2,tCDMX.y + windowHeight/2,5)
-		// popMatrix()
+		// similar to popMatrix()
 		easycam.endHUD()
 	}
 }
+
+function showPointsOfInterest(amount){
+	if(pOIFlag){
+		let projectPoints = []
+		// the screenPosition() function projects coordinates from 3D space into the 2D projections of the Screen
+		for(let i = 0 ; i <amount; i++){
+			projectPoints[i] = screenPosition(-projectPOI[i].x, projectPOI[i].y, projectPOI[i].z)
+		}
+		let user = createVector(mouseX - windowWidth/2,mouseY - windowHeight/2)
+		// in case the touch display or device is available use the touchX instead
+		if(isTouch ){
+			user = createVector (touchX - windowWidth/2 , touchY - windowHeight/2 )
+		}
+		// similar to pushMatrix()
+		easycam.beginHUD()
+			for(let i = 0; i < amount;i++){
+				if(user.dist(projectPoints[i])<10){
+					fill(255,0,255)
+					noStroke()
+					circle(projectPoints[i].x + windowWidth/2, projectPoints[i].y + windowHeight/2, 15)
+					let lat = Math.asin(projectPOI[i].z / r )
+					let lon = Math.atan2(projectPOI[i].y, projectPOI[i].x)
+					lat = lat * 180 / Math.PI
+					lon = lon * 180 / Math.PI
+					textSize(12)
+					let latLon = 'lat : ' + lat.toFixed(3) + ' , lon : '+ lon.toFixed(3);
+					text( projects[i+1]  + " , " + latLon ,projectPoints[i].x + windowWidth/2 + 10, projectPoints[i].y + windowHeight/2 + 5 )
+				}else{
+					fill(255,100,255)
+					noStroke()
+					circle(projectPoints[i].x + windowWidth/2, projectPoints[i].y + windowHeight/2, 2)
+				}
+			}
+		// similar to popMatrix()
+		easycam.endHUD()
+	}
+}
+
 function mouseClicked() {
 
 }
@@ -626,11 +751,9 @@ function drawLine(x1, y1, z1, x2, y2, z2, r,g,b){
 }
 
 
-function loadData(path) {
-
+function loadCityData(path) {
 
    futureCitiesData = loadTable(path, '', '')
-
 
   // int entriesCount =0;
   // for (TableRow row : futureCities.rows()) {
@@ -655,6 +778,12 @@ function loadData(path) {
   // pOIs = new PointOfInterest[cities.size()];
   // multiplePOI();
 }
+
+function loadProjectData(path) {
+
+	partnerProjectsData = loadTable(path, 'csv', 'header')
+ 
+ }
 
 
 //  ****** Classes ******
@@ -875,8 +1004,3 @@ class Label{
 
 	}
 }
-
-
-
-
-
