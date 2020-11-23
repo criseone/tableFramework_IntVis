@@ -3,6 +3,12 @@
 	src:url("/assets/Futura-Lig.otf");
 }
 
+.myDiv {
+	border: 5px outset red;
+	background-color: lightblue;    
+	text-align: center;
+  }
+
 body { 
 	position: absolute;
 	padding: 0; 

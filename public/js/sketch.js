@@ -203,9 +203,6 @@ function setup() {
 	setMap(earthMap,pointsEarth,screenPointsEarth)
 	// console.log(this._renderer)
 
-	// CREATING A RANDOM ARRAY OF POINTS AROUND THE GLOBE
-	//  replace with csv real points or Points of Interest
-
 	projects = partnerProjectsData.getColumn(0)
 	let pp_name = partnerProjectsData.getColumn(1)
 	let pp_country = partnerProjectsData.getColumn(2)
@@ -724,7 +721,7 @@ function showPointsOfInterest(amount){
 					lon = lon * 180 / Math.PI
 					textSize(12)
 					let latLon = 'lat : ' + lat.toFixed(3) + ' , lon : '+ lon.toFixed(3);
-					text( projects[i+1]  + " , " + latLon ,projectPoints[i].x + windowWidth/2 + 10, projectPoints[i].y + windowHeight/2 + 5 )
+					createElement('myDiv', text(projects[i+1]  + " , " + latLon ,projectPoints[i].x + windowWidth/2 + 10, projectPoints[i].y + windowHeight/2 + 5 ))
 				}else{
 					fill(255,100,255)
 					noStroke()
